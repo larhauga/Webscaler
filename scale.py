@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 # Python program for scaling webservices with HAproxy
+from haproxy import haproxy
+from nova import openstack
 
 backends = []
 min_backends = 2
@@ -27,7 +29,11 @@ def main():
     # while testing connections
         # check difference
         # scale up / scale down
-    pass
+
+    stack = openstack()
+    ha = haproxy.HAproxy()
+
+    ha.compile(stack.backends())
 
 if __name__ == '__main__':
     main()
