@@ -41,10 +41,10 @@ class HAproxy:
             counter += 1
             nodes.append(s)
 
-        #nodes=[ {'name': 'node01', 'ip': '192.168.128.48','id':1},
-                #{'name': 'node02', 'ip': '192.168.128.50','id':2},
-                #{'name': 'node03', 'ip': '192.168.128.51','id':3}]
-        print template.render(nodes=nodes)
+        # Example
+        # nodes=[ {'name': 'node01', 'ip': '192.168.128.48','id':1},]
+        with open('haproxy.cfg', 'wb') as f:
+            f.write(template.render(nodes=nodes))
 
 
     def set_online(self,host):
