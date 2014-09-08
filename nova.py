@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from novaclient import client
+from novaclient import client, v1_1
 from os import environ, path
+import time
 import ConfigParser
 
 class openstack:
@@ -27,7 +28,9 @@ class openstack:
         self.nova = client.Client(**self.cred)
 
     def backends(self):
-        """ Get the virtual machines that are backends """
+        """ Get the virtual machines that are backends
+            Returns: List of server objects
+        """
         nodes = self.nova.servers.list()
         backends = []
 
@@ -35,18 +38,7 @@ class openstack:
             if "node" in node.name:
                 backends.append(node)
 
-        #print backends
-        #print dir(backends[0])
-        #print backends[0].addresses
-        #print backends[0].to_dict()
-        #print backends[0].addresses
         return backends
-        #print nodes
-        #print dir(nodes[0])
-        #print nodes[0].to_dict()
-        #print nodes[0].addresses
-        #for node in nodes:
-            #print node
 
     def get_status(self):
         """ Get the machine status """
@@ -58,13 +50,46 @@ class openstack:
         """
         pass
 
-    def create_web(self):
+    def create_backend(self):
         """ Creates a instance in Openstack """
-        pass
+        keypair = self.nova.keypairs.find(name='hlarshaugan')
+        image = self.nova.images.find(name='ubuntu-12.04')
+        flavor = self.nova.flavors.find(name='m1.medium')
+        net = self.nova.networks.find(label='MS016A_net')
+        nics = [{"net-id": net.id, "v4-fixed-ip": ''}]
 
-    def terminate(self,machine):
+        server = self.nova.servers.create(name = 'node',
+                                    image = image.id,
+                                    flavor = flavor.id,
+                                    nics = nics,
+                                    key_name = keypair.name)
+
+        status = server.status
+        while status == 'BUILD':
+            time.sleep(5)
+            instance = self.nova.servers.get(server.id)
+            status = instance.status
+
+        return instance
+
+    def start(self, instance):
+        if isinstance(instance, v1_1.servers.Server):
+            instance.start()
+        else:
+            self.nova.servers.findall(name=instance)[0].start()
+
+    def shutdown(self, instance):
+        if isinstance(instance, v1_1.servers.Server):
+            instance.stop()
+        else:
+            self.nova.servers.findall(name=instance)[0].stopp()
+
+    def delete(self, instance):
         """ Terminates a instance """
-        pass
+        if isinstance(instance, v1_1.servers.Server):
+            instance.delete()
+        else:
+            self.nova.servers.findall(name=instance)[0].delete()
 
 def main():
     stack = openstack()
