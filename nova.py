@@ -40,6 +40,15 @@ class openstack:
 
         return backends
 
+    def active_backends(self):
+        backends = self.backends()
+        active = []
+        for node in backends:
+            if node.status in 'ACTIVE':
+                active.append(node)
+
+        return active
+
     def get_status(self):
         """ Get the machine status """
         pass
@@ -52,17 +61,24 @@ class openstack:
 
     def create_backend(self):
         """ Creates a instance in Openstack """
+        backends = self.backends()
+
+        name = 'node-%s' % str(self.get_instance_number(nodes=backends, next=True))
+
         keypair = self.nova.keypairs.find(name='hlarshaugan')
         image = self.nova.images.find(name='ubuntu-12.04')
         flavor = self.nova.flavors.find(name='m1.medium')
         net = self.nova.networks.find(label='MS016A_net')
         nics = [{"net-id": net.id, "v4-fixed-ip": ''}]
+        p = path.dirname(path.abspath(__file__))
+        f = open(p + '/etc/clouddata.txt', 'r')
 
-        server = self.nova.servers.create(name = 'node',
+        server = self.nova.servers.create(name = name,
                                     image = image.id,
                                     flavor = flavor.id,
                                     nics = nics,
-                                    key_name = keypair.name)
+                                    key_name = keypair.name,
+                                    userdata=f)
 
         status = server.status
         while status == 'BUILD':
@@ -82,7 +98,7 @@ class openstack:
         if isinstance(instance, v1_1.servers.Server):
             instance.stop()
         else:
-            self.nova.servers.findall(name=instance)[0].stopp()
+            self.nova.servers.findall(name=instance)[0].stop()
 
     def delete(self, instance):
         """ Terminates a instance """
@@ -91,9 +107,35 @@ class openstack:
         else:
             self.nova.servers.findall(name=instance)[0].delete()
 
+    def get_instance_number(self, nodes=None, next=False,lowest=False):
+        if not nodes:
+            nodes = self.backends()
+        numbers = []
+        for node in nodes:
+            numbers.append(int(node.name.split('-')[1]))
+
+        if next:
+            if numbers:
+                return max(numbers) + 1
+            else:
+                return 1
+        elif lowest:
+            return min(numbers)
+        else:
+            return numbers
+
+    def sleeping_machine(self):
+        """ Returns the first shutoff machine """
+        backends = self.backends()
+        for node in backends:
+            if node.status in 'SHUTOFF':
+                return node
+        return None
+
 def main():
     stack = openstack()
-    stack.backends()
+    print stack.backends()
+    print stack.create_backend()
     #print stack.cred
 
     #nova = client.Client(**stack.cred)

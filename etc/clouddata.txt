@@ -1,0 +1,4 @@
+#!/bin/bash
+apt-get update --fix-missing
+apt-get install apache2 -y
+apt-get install libapache2-mod-php5 -y
