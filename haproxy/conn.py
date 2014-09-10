@@ -2,13 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from socket import socket, AF_UNIX, SOCK_STREAM
-from haproxy import const
+#from haproxy import const
 
 HA_BUFSIZE = 8192
 
-class HAconn(self, sockfile):
-    def __init__(self, sockfile):
-        self.sockfile = sockfile
+class HAconn:
+    def __init__(self, sockfile=None):
+        if not sockfile:
+            self.sockfile = '/var/run/haproxy/admin.sock'
+        else:
+            self.sockfile = sockfile
         self.sock = None
         self.open()
 
@@ -16,31 +19,39 @@ class HAconn(self, sockfile):
         self.sock = socket(AF_UNIX, SOCK_STREAM)
         self.sock.connect(self.sockfile)
 
-    def send_cmd(self, cmd, objectify=False):
-        """Receives a command obj and sends it to the
-           socket. Receives the output and passes it through
-           the command to parse it a present it.
-           - objectify -> Return an object instead of plain text"""
+    def send_cmd(self, cmd):
 
         res = ""
-        self.sock.send(cmd.getCmd())
+        self.sock.send(cmd)
         output = self.sock.recv(HA_BUFSIZE)
 
         while output:
             res += output
-            output = self.sock.recv(const.HaP_BUFSIZE)
+            output = self.sock.recv(HA_BUFSIZE)
 
-        if objectify:
-            return cmd.getResultObj(res)
-
-        return cmd.getResult(res)
+        return res
 
     def close(self):
         """Closes the socket"""
         self.sock.close()
 
 def main():
-    con = HAcon('/var/run/haproxy/admin.sock')
+    #con = HAconn('/var/run/haproxy/admin.sock')
+    ##print con.send_cmd('show stat\r\n')
+    #print con.send_cmd('enable server nodes/node02\r\n')
+    #con.close()
+    con = HAconn()
+    print con.send_cmd('show info\r\n')
+    con.close()
+    con = HAconn()
+    print con.send_cmd('show stat\r\n')
+    con.close()
+    con = HAconn()
+    print con.send_cmd('show sess\r\n')
+    con.close()
+    con = HAconn()
+    print con.send_cmd('show table\r\n')
+    con.close()
 
 if __name__ == '__main__':
     main()
