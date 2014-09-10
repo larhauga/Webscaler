@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from subprocess import Popen
-#from conn import HAconn
+from conn import HAconn
 from os import path
 from jinja2 import Environment, PackageLoader, FileSystemLoader
 
@@ -47,13 +47,17 @@ class HAproxy:
             f.write(template.render(nodes=nodes))
 
 
-    def set_online(self,host):
-        conn = HAconn(socket)
-        send_cmd()
-        pass
+    def set_online(self, instancename):
+        conn = HAconn()
+        ret = conn.send_cmd('enable server nodes/%s' % (instancename))
+        conn.close()
+        return ret
 
-    def set_offline(self,host):
-        pass
+    def set_offline(self,instancename):
+        conn = HAconn()
+        ret = conn.send_cmd('disable server nodes/%s' % (instancename))
+        conn.close()
+        return ret
 
 
 def main():
