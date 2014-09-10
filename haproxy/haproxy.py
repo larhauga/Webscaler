@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from subprocess import Popen
+import subprocess
 from conn import HAconn
 from os import path
 from jinja2 import Environment, PackageLoader, FileSystemLoader
@@ -43,9 +43,8 @@ class HAproxy:
 
         # Example
         # nodes=[ {'name': 'node01', 'ip': '192.168.128.48','id':1},]
-        with open('haproxy.cfg', 'wb') as f:
+        with open('/etc/haproxy/haproxy.cfg', 'wb') as f:
             f.write(template.render(nodes=nodes))
-
 
     def set_online(self, instancename):
         conn = HAconn()
