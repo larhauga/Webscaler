@@ -23,10 +23,16 @@ def get_stat(output=None):
         l.append(dict(zip(header, line.split(','))))
     con.close()
 
-    #pprint.pprint(l)
     if output:
+        s = ''
         for key, value in l[0].iteritems():
-            print "key (%s): %s, %s, %s, %s" % (key, value, l[1][key], l[2][key], l[3][key])
+            s += 'key (%s)' % key
+            for i in l:
+                if key and len(i) > 1:
+                    s += i[key] + ','
+            s += '\n'
+        print s
+
 
     return l
 
@@ -44,7 +50,7 @@ def previous_req():
 def main():
     #print get_info()
     #print get_cur_req()
-    print get_stat(output=True)
+    get_stat(output=True)
 
 if __name__ == '__main__':
     main()
