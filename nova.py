@@ -67,12 +67,14 @@ class openstack:
 
         keypair = self.nova.keypairs.find(name='hlarshaugan')
         image = self.nova.images.find(name='ubuntu-12.04')
-        flavor = self.nova.flavors.find(name='m1.medium')
+        #flavor = self.nova.flavors.find(name='m1.medium')
+        flavor = self.nova.flavors.find(name='m1.tiny')
         net = self.nova.networks.find(label='MS016A_net')
         nics = [{"net-id": net.id, "v4-fixed-ip": ''}]
         p = path.dirname(path.abspath(__file__))
         f = open(p + '/etc/clouddata.txt', 'r')
 
+        # try/except novaclient.exceptions.OverLimit
         server = self.nova.servers.create(name = name,
                                     image = image.id,
                                     flavor = flavor.id,
