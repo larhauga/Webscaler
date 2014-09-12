@@ -20,7 +20,8 @@ def get_stat(output=None):
     #print header
     l = []
     for line in lines:
-        l.append(dict(zip(header, line.split(','))))
+        if len(line.split(',')) > 1:
+            l.append(dict(zip(header, line.split(','))))
     con.close()
 
     if output:
@@ -33,16 +34,25 @@ def get_stat(output=None):
             s += '\n'
         print s
 
-
     return l
 
+def get_stat_backends():
+    stats = get_stat()
+    backends = []
+    for node in stats:
+        if 'node' in node['svname']:
+            backends.append(node)
 
-def get_cur_req():
-    return get_info()['CumConns']
+    return backends
+
+def get_backend_cum_requests():
+    stats = get_stat()
+    for node in stats:
+        if 'nodes' in node['pxname'] and 'BACKEND' in node['svname']:
+            return node
 
 def cum_req():
     pass
-
 
 def previous_req():
     pass
