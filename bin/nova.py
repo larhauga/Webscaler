@@ -9,11 +9,11 @@ import ConfigParser
 class openstack:
 
     def __init__(self):
-        p = path.dirname(path.abspath(__file__))
-        p = path.join(p, 'etc/openstack.cfg')
-        if path.isfile(p):
+        self.p = path.split(path.dirname(path.abspath(__file__)))[0]
+        opens = path.join(self.p, 'etc/openstack.cfg')
+        if path.isfile(opens):
             config = ConfigParser.ConfigParser()
-            config.read(p)
+            config.read(opens)
         else:
             logging.error("Missing configuration file 'etc/openstack.cfg'")
             exit(1)
@@ -71,8 +71,7 @@ class openstack:
         flavor = self.nova.flavors.find(name='m1.tiny')
         net = self.nova.networks.find(label='MS016A_net')
         nics = [{"net-id": net.id, "v4-fixed-ip": ''}]
-        p = path.dirname(path.abspath(__file__))
-        f = open(p + '/etc/clouddata.txt', 'r')
+        f = open(path.join(self.p, 'etc/clouddata.txt'), 'r')
 
         # try/except novaclient.exceptions.OverLimit
         server = self.nova.servers.create(name = name,
