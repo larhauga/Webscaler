@@ -5,10 +5,14 @@
 from haproxy import haproxy, hastats
 from nova import openstack
 import time
+import datetime
 
 backends = []
 min_backends = 2
 previously = []
+# server_threshold = 20
+# needed_backends =
+# actions on the way
 
 # figure out how to get the difference and keep count
 
@@ -74,11 +78,19 @@ def main():
     conns = []
     try:
         while True:
+            first = datetime.datetime.now()
             for line in hastats.get_stat_backends():
                 print line['svname'] + ', ' + line['status']
             what_do()
             update_conf()
+            c =  datetime.datetime.now() - first
+            print c.seconds
+            print c
+            second = datetime.datetime.now()
             time.sleep(10)
+            d = datetime.datetime.now() - second
+            print d.seconds
+            print d
 
             # getstat check 'rate'
         # while testing connections
