@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from conn import HAconn
+from haconn import HAconn
 import pprint
 
 def get_info():

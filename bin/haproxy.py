@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import subprocess
-from conn import HAconn
+from haconn import HAconn
 from os import path
 from jinja2 import Environment, PackageLoader, FileSystemLoader
 
