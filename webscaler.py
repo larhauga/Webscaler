@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 # Python program for scaling webservices with HAproxy
-from haproxy import haproxy, hastats
-from nova import openstack
+from bin import haproxy, hastats
+from bin.nova import openstack
 import time
 import datetime
 
