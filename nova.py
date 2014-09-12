@@ -38,7 +38,7 @@ class openstack:
             if "node" in node.name:
                 backends.append(node)
 
-        return backends
+        return backends[::-1]
 
     def active_backends(self):
         backends = self.backends()
@@ -138,12 +138,7 @@ def main():
     stack = openstack()
     print stack.backends()
     print stack.create_backend()
-    #print stack.cred
 
-    #nova = client.Client(**stack.cred)
-    #print nova.flavors.list()
-    #print nova.servers.list()[0].status
-    #print nova.servers.list()[0].addresses
     #print nova.limits.get().to_dict()
     #print nova.quotas.get('59a46c9fcf174ec3890211cc86e0836b', user_id='s171201').instances
 
