@@ -10,7 +10,7 @@ import datetime
 backends = []
 min_backends = 2
 previously = []
-# server_threshold = 20
+server_threshold = 20
 # needed_backends =
 # actions on the way
 
@@ -26,23 +26,38 @@ def scale_up():
     else:
         new = stack.create_backend()
 
+    # could reload proxy here?
 
-    #ha = haproxy.HAproxy()
-
-    # nova create server
-    # get information
-    # haproxy add server
-    pass
 
 def scale_down():
     ha = haproxy.HAproxy()
     stack = openstack()
-    #backends = stack.backends()
+    active = stack.active_backends()
+    passive = stack.passive_backends()
+    instance = None
+
+    print "active servs: %s, min bakends: %s" % (str(len(active)), str(min_backends))
+    if (len(active)) == min_backends:
+        if len(passive) == 0:
+            return False
+    if not passive:
+        if active:
+            instance = active.pop()
+            ha.set_offline(instance.name)
+            #time.sleep(10)
+            stack.shutdown(instance)
+    else:
+        for node in passive:
+            stack.delete(node)
+            instance = active[-1]
+            ha.set_offline(instance.name)
+        stack.shutdown(instance)
+
+    return True
 
     # haproxy set offline
     # wait untill no more connections
     # nova remove server
-    pass
 
 def what_do():
     # get current cumulative request counter
@@ -50,12 +65,33 @@ def what_do():
     # check what is normal
     difference = 0
     if previously:
-        difference = int(current) - int(previously[-1])
-    print difference
+        if previously[-1] > current:
+            difference = current
+        else:
+            difference = int(current) - int(previously[-1])
+    else:
+        difference = current
+
     # devided by the nodes?
     backends = hastats.get_stat_backends()
 
-    print difference / len(backends)
+    capacity = server_threshold * len(backends)
+    print "capacity: %s, difference: %s" % (str(capacity), str(difference))
+    if capacity < difference:
+        print "Im scaling up! Not doing this alone"
+        if scale_up():
+            print "Launched new instance"
+    elif capacity > difference:
+        if int(min_backends) == int(len(backends)):
+            return
+        elif scale_down():
+            print "Scaled down"
+        else:
+            print "Not scaling down. Possible no more hosts to remove"
+    else:
+        print "Im dooing nothing!"
+
+    print int(difference) / int(len(backends))
 
     previously.append(current)
 
@@ -69,7 +105,6 @@ def update_conf():
     stack = openstack()
     backends = stack.backends()
     if not len(backends) == len(stats):
-        print "inside"
         ha = haproxy.HAproxy()
         ha.compile(backends)
         ha.restart()
@@ -83,14 +118,14 @@ def main():
                 print line['svname'] + ', ' + line['status']
             what_do()
             update_conf()
-            c =  datetime.datetime.now() - first
-            print c.seconds
-            print c
-            second = datetime.datetime.now()
+            #c =  datetime.datetime.now() - first
+            #print c.seconds
+            #print c
+            #second = datetime.datetime.now()
             time.sleep(10)
-            d = datetime.datetime.now() - second
-            print d.seconds
-            print d
+            #d = datetime.datetime.now() - second
+            #print d.seconds
+            #print d
 
             # getstat check 'rate'
         # while testing connections
