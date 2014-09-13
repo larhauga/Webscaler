@@ -41,13 +41,24 @@ class openstack:
         return backends[::-1]
 
     def active_backends(self):
-        backends = self.backends()
+        if self.backends:
+            self.backends = self.backends()
         active = []
-        for node in backends:
+        for node in self.backends:
             if node.status in 'ACTIVE':
                 active.append(node)
 
         return active
+
+    def passive_backends(self):
+        if not self.backends:
+            self.backends = self.backends()
+        passive = []
+        for node in self.backends:
+            if not node.status in 'ACTIVE':
+                passive.append(node)
+        return passive
+
 
     def get_status(self):
         """ Get the machine status """
@@ -96,10 +107,12 @@ class openstack:
             self.nova.servers.findall(name=instance)[0].start()
 
     def shutdown(self, instance):
+        if not instance:
+            return False
         if isinstance(instance, v1_1.servers.Server):
             instance.stop()
         else:
-            self.nova.servers.findall(name=instance)[0].stop()
+            self.nova.servers.find(name=instance).stop()
 
     def delete(self, instance):
         """ Terminates a instance """
