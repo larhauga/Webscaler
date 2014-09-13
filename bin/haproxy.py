@@ -3,6 +3,7 @@
 
 import subprocess
 from haconn import HAconn
+from nova import openstack
 from os import path
 from jinja2 import Environment, PackageLoader, FileSystemLoader
 
@@ -36,7 +37,18 @@ class HAproxy:
         for server in serverlist:
             s = {}
             s['name'] = server.name
-            s['ip'] = server.addresses[self.subnet][0]['addr']
+            try:
+                s['ip'] = server.addresses[self.subnet][0]['addr']
+            except KeyError:
+                stack = openstack()
+                ip_activate = False
+                while not ip_activate:
+                    try:
+                        s['ip'] = stack.nova.servers.find(name=server.name).addresses[self.subnet][0]['addr']
+                        ip_activate = True
+                    except KeyError:
+                        continue
+
             s['id'] = counter
             counter += 1
             nodes.append(s)
