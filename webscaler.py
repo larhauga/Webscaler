@@ -118,19 +118,7 @@ def main():
                 print line['svname'] + ', ' + line['status']
             what_do()
             update_conf()
-            #c =  datetime.datetime.now() - first
-            #print c.seconds
-            #print c
-            #second = datetime.datetime.now()
             time.sleep(10)
-            #d = datetime.datetime.now() - second
-            #print d.seconds
-            #print d
-
-            # getstat check 'rate'
-        # while testing connections
-            # check difference
-            # scale up / scale down
 
     except KeyboardInterrupt:
         pass
