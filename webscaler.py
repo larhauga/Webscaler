@@ -4,27 +4,36 @@
 # Python program for scaling webservices with HAproxy
 from bin import haproxy, hastats
 from bin.nova import openstack
+from math import ceil
 import time
 import datetime
 
-backends = []
+sleeptime = 60
 min_backends = 2
-previously = []
-server_threshold = 20
-# needed_backends =
+server_threshold = 10
+current_backends = 0
+pending_backends = 0
+
+metrics = []
+actions = {}
 # actions on the way
 
 # figure out how to get the difference and keep count
+"""
+    What data do we need in metrics?
+    date: date object of when
+    acu: accumulated requests
+    diff: difference since last time
+
+"""
 
 def scale_up():
     stack = openstack()
-    new = None
     sleeping = stack.sleeping_machine()
     if sleeping:
-        new = sleeping
-        new.start()
+        sleeping[0].start()
     else:
-        new = stack.create_backend()
+        return stack.create_backend()
 
     # could reload proxy here?
 
@@ -37,21 +46,6 @@ def scale_down():
     instance = None
 
     print "active servs: %s, min bakends: %s" % (str(len(active)), str(min_backends))
-    if (len(active)) == min_backends:
-        if len(passive) == 0:
-            return False
-    if not passive:
-        if active:
-            instance = active.pop()
-            ha.set_offline(instance.name)
-            #time.sleep(10)
-            stack.shutdown(instance)
-    else:
-        for node in passive:
-            stack.delete(node)
-            instance = active[-1]
-            ha.set_offline(instance.name)
-        stack.shutdown(instance)
 
     return True
 
@@ -62,38 +56,6 @@ def scale_down():
 def what_do():
     # get current cumulative request counter
     current = hastats.get_backend_cum_requests()['stot']
-    # check what is normal
-    difference = 0
-    if previously:
-        if previously[-1] > current:
-            difference = current
-        else:
-            difference = int(current) - int(previously[-1])
-    else:
-        difference = current
-
-    # devided by the nodes?
-    backends = hastats.get_stat_backends()
-
-    capacity = server_threshold * len(backends)
-    print "capacity: %s, difference: %s" % (str(capacity), str(difference))
-    if capacity < difference:
-        print "Im scaling up! Not doing this alone"
-        if scale_up():
-            print "Launched new instance"
-    elif capacity > difference:
-        if int(min_backends) == int(len(backends)):
-            return
-        elif scale_down():
-            print "Scaled down"
-        else:
-            print "Not scaling down. Possible no more hosts to remove"
-    else:
-        print "Im dooing nothing!"
-
-    print int(difference) / int(len(backends))
-
-    previously.append(current)
 
     print "Cum connections on backend: %s" % str(current)
     print "Total backends: %s" % str(len(backends))
@@ -109,16 +71,73 @@ def update_conf():
         ha.compile(backends)
         ha.restart()
 
+def initiate():
+    # Gathering first data
+    data = {}
+    data['acu'] = hastats.get_backend_cum_requests()['stot']
+    data['diff'] = 0
+    data['date'] = datetime.datetime.now()
+    data['active'] = len(hastats.get_backends_up())
+    data['needed'] = None
+    metrics.append(data)
+    print metrics
+    time.sleep(2)
+    last = data
+    data = {}
+    data['acu'] = hastats.get_backend_cum_requests()['stot']
+    data['diff'] = (float(data['acu']) - float(last['acu'])) / float(sleeptime)
+    data['date'] = datetime.datetime.now()
+    data['needed'] = needed_servers(acu=data['acu'], diff=data['diff'])
+    data['active'] = len(hastats.get_backends_up())
+    metrics.append(data)
+
+def needed_servers(acu=None,diff=None):
+    last = metrics[-1]
+    # calculate servers for the load
+    # requests per sec / threshold
+    # ceil: rounds up
+    needed = int(ceil(float(last['diff']) / float(server_threshold)))
+    return needed
+
+def new_metrics(current_cumulated):
+    current = {}
+    current['acu'] = current_cumulated
+    current['diff'] = (float(current_cumulated) - float(metrics[-1]['acu'])) / float(sleeptime)
+    current['date'] = datetime.datetime.now()
+    current['needed'] = needed_servers(acu=current['acu'], diff=current['diff'])
+
+    #stack = openstack()
+    current['active'] = len(hastats.get_backends_up())
+    #current['active'] = stack.active_backends()
+
+    metrics.append(current)
+    return current
+
+    ######
+    # NOTE! HANDLE RESTART!!!
+    ######
+
 def main():
-    conns = []
+    # Starting the first time
+    # getting current cum connections
+
     try:
+
+        if not metrics:
+            print("Gathering initial data...")
+
+            # Gathering first data
+            initiate()
+
         while True:
-            first = datetime.datetime.now()
+            current = new_metrics(hastats.get_backend_cum_requests()['stot'])
+            print metrics
+            print needed_servers()
+
             for line in hastats.get_stat_backends():
                 print line['svname'] + ', ' + line['status']
-            what_do()
-            update_conf()
-            time.sleep(10)
+
+            time.sleep(sleeptime)
 
     except KeyboardInterrupt:
         pass
