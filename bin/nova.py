@@ -27,6 +27,9 @@ class openstack:
 
         self.nova = client.Client(**self.cred)
 
+    def reload_conf(self):
+        self.__init__(self)
+
     def backends(self):
         """ Get the virtual machines that are backends
             Returns: List of server objects
@@ -41,34 +44,20 @@ class openstack:
         return backends[::-1]
 
     def active_backends(self):
-        if self.backends:
-            self.backends = self.backends()
         active = []
-        for node in self.backends:
+        for node in self.backends():
             if node.status in 'ACTIVE':
                 active.append(node)
 
         return active
 
     def passive_backends(self):
-        if not self.backends:
-            self.backends = self.backends()
         passive = []
-        for node in self.backends:
+        for node in self.backends():
             if not node.status in 'ACTIVE':
                 passive.append(node)
         return passive
 
-
-    def get_status(self):
-        """ Get the machine status """
-        pass
-
-    def get_info(self):
-        """ Get information of a instnace.
-            Returns: Dict with at least IP if present
-        """
-        pass
 
     def create_backend(self):
         """ Creates a instance in Openstack """
