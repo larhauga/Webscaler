@@ -51,6 +51,15 @@ def get_backend_cum_requests():
         if 'nodes' in node['pxname'] and 'BACKEND' in node['svname']:
             return node
 
+def get_backends_up():
+    backends = get_stat_backends()
+    backs = []
+    for node in backends:
+        if 'UP' in node['status']:
+            backs.append(node)
+
+    return backs
+
 def cum_req():
     pass
 
