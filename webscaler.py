@@ -7,12 +7,13 @@ from bin.nova import openstack
 from math import ceil
 import time
 import datetime
+import csv
 
 sleeptime = 60
 min_backends = 2
 server_threshold = 10
 current_backends = 0
-pending_backends = 0
+pending_backends = []
 
 metrics = []
 actions = {}
@@ -26,6 +27,16 @@ actions = {}
     diff: difference since last time
 
 """
+def write_data():
+    with open('%s-webscaler' % (datetime.datetime.now().strftime("%Y-%m-%dT%H%M")), 'wb') as f:
+        w = csv.DictWriter(f, metrics[0].keys)
+        header = metrics[0].keys()
+        #header = sorted([k for k, v in metrics[0].items()])
+        csv_data = [header]
+        for d in metrics:
+            csv_data.append([d[h] for h in header])
+        w.writer.writerows(csv_data)
+
 
 def scale_up():
     stack = openstack()
@@ -140,6 +151,7 @@ def main():
             time.sleep(sleeptime)
 
     except KeyboardInterrupt:
+        write_data()
         pass
 
 if __name__ == '__main__':
