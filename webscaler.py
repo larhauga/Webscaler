@@ -85,16 +85,25 @@ def scale_down(Number=1):
             removed += 1
 
     if not passive and len(active) == (min_backends+1):
-        active[-i].stop()
+        active[-1].stop()
         return True
 
     if active:
-        left = len(active) - min_backends - (Number-removed)
+        print "Starting to remove active nodes, wanting to remove %s nodes" % Number
+        left = len(active) - (Number-removed)
+        toremove = Number-removed
+
+        print "Number that will be left: %s" % str(left)
         if left > min_backends:
-            toremove = Number-removed
+            print "Ok, so we are removing: %s hosts" % str(toremove)
             for i in range(0,toremove):
-                print "Stopping node %s" % active[-1].name
-                active[-1].stop()
+                print "Iteration %s" % str(i)
+                if 'ACTIVE' in active[-i].status:
+                    print "Stopping node %s" % active[-i].name
+                    active[-i].stop()
+                elif 'SHUTOFF' in active[-i].status:
+                    print "Deleting node &s" % active[-i].name
+                    active[-i].delete()
 
     return True
 
@@ -121,6 +130,11 @@ def update_conf():
         ha.restart()
 
 def initiate():
+    # Boot first machines if not active:
+    stack = openstack()
+    backends = stack.backends()
+    if len(backends) < min_backends:
+        scale_up(min_backends)
     # Gathering first data
     data = {}
     data['acu'] = hastats.get_backend_cum_requests()['stot']
@@ -152,10 +166,13 @@ def new_metrics(current_cumulated, hareset=False):
     current = {}
     current['acu'] = current_cumulated
     current['date'] = datetime.datetime.now()
-    current['diff'] = (float(current_cumulated) - float(metrics[-1]['acu'])) \
-            / float((current['date']-metrics[-1]['date']).seconds)
-    current['needed'] = needed_servers(acu=current['acu'], diff=current['diff'])
+    try:
+        current['diff'] = (float(current_cumulated) - float(metrics[-1]['acu'])) \
+                / float((current['date']-metrics[-1]['date']).seconds)
+    except ZeroDivisionError:
+        current['diff'] = 0
 
+    current['needed'] = needed_servers(acu=current['acu'], diff=current['diff'])
     current['active'] = len(hastats.get_backends_up())
 
     if hareset:
@@ -204,7 +221,7 @@ def main():
                 scale_up(needed-len(active_backends))
             elif needed < len(active_backends):
                 print "Scaling down"
-                if not scale_down(len(active_backends)-needed):
+                if not scale_down(len(active_backends)-needed-min_backends):
                     print "Lowest number"
             else:
                 # Sleeping
