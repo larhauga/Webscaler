@@ -14,6 +14,7 @@ min_backends = 2
 server_threshold = 10
 current_backends = 0
 pending_backends = []
+quota_limit = 13
 
 metrics = []
 actions = {}
@@ -38,18 +39,30 @@ def write_data():
         w.writer.writerows(csv_data)
 
 
-def scale_up():
+def scale_up(Number=1):
     stack = openstack()
     sleeping = stack.sleeping_machine()
+
+    if len(stack.backends()) == (quota_limit-1):
+        return False
+
+    scaled = 0
     if sleeping:
-        sleeping[0].start()
+        print sleeping
+        #if not 'powering-on' in sleeping.state:
+        sleeping.start()
+        scaled += 1
     else:
-        return stack.create_backend()
+        if scaled < Number:
+            instances = []
+            for i in range(0,Number-scaled):
+                instances.append(stack.create_backend())
+            return instances
+
 
     # could reload proxy here?
 
-
-def scale_down():
+def scale_down(Number=1):
     ha = haproxy.HAproxy()
     stack = openstack()
     active = stack.active_backends()
@@ -57,6 +70,31 @@ def scale_down():
     instance = None
 
     print "active servs: %s, min bakends: %s" % (str(len(active)), str(min_backends))
+
+    if len(active) <= min_backends:
+        return False
+    print passive
+    print active
+
+    removed = 0
+
+    if passive:
+        for node in passive:
+            print "Removing passive node %s" % node.name
+            node.delete()
+            removed += 1
+
+    if not passive and len(active) == (min_backends+1):
+        active[-i].stop()
+        return True
+
+    if active:
+        left = len(active) - min_backends - (Number-removed)
+        if left > min_backends:
+            toremove = Number-removed
+            for i in range(0,toremove):
+                print "Stopping node %s" % active[-1].name
+                active[-1].stop()
 
     return True
 
@@ -92,7 +130,7 @@ def initiate():
     data['needed'] = None
     metrics.append(data)
     print metrics
-    time.sleep(2)
+    time.sleep(sleeptime)
     last = data
     data = {}
     data['acu'] = hastats.get_backend_cum_requests()['stot']
@@ -110,15 +148,22 @@ def needed_servers(acu=None,diff=None):
     needed = int(ceil(float(last['diff']) / float(server_threshold)))
     return needed
 
-def new_metrics(current_cumulated):
+def new_metrics(current_cumulated, hareset=False):
     current = {}
     current['acu'] = current_cumulated
-    current['diff'] = (float(current_cumulated) - float(metrics[-1]['acu'])) / float(sleeptime)
     current['date'] = datetime.datetime.now()
+    current['diff'] = (float(current_cumulated) - float(metrics[-1]['acu'])) \
+            / float((current['date']-metrics[-1]['date']).seconds)
     current['needed'] = needed_servers(acu=current['acu'], diff=current['diff'])
 
-    #stack = openstack()
     current['active'] = len(hastats.get_backends_up())
+
+    if hareset:
+        current['acu'] = 0
+        current['diff'] = metrics[-1]['diff']
+        current['needed'] = metrics[-1]['needed']
+
+    #stack = openstack()
     #current['active'] = stack.active_backends()
 
     metrics.append(current)
@@ -141,9 +186,32 @@ def main():
             initiate()
 
         while True:
+            time.sleep(sleeptime)
             current = new_metrics(hastats.get_backend_cum_requests()['stot'])
             print metrics
             print needed_servers()
+
+            # What to do? Scale up/down or are we happy?
+            stack = openstack()
+            active_backends = stack.active_backends()
+            up_backends = hastats.get_backends_up()
+
+            needed = needed_servers()
+            #if len(active_backends) == len(up_backends):
+                # We are in concurrency
+            if needed > len(active_backends):
+                print "Scaling up"
+                scale_up(needed-len(active_backends))
+            elif needed < len(active_backends):
+                print "Scaling down"
+                if not scale_down(len(active_backends)-needed):
+                    print "Lowest number"
+            else:
+                # Sleeping
+                print "Sleeping one more round"
+
+            update_conf()
+            new_metrics(0, hareset=True)
 
             for line in hastats.get_stat_backends():
                 print line['svname'] + ', ' + line['status']
