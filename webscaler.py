@@ -63,6 +63,9 @@ def scale_up(Number=1):
     # could reload proxy here?
 
 def scale_down(Number=1):
+    #########
+    # NOTE! WHEN TAKING INTO ACCOUNT THE MINIMUM LIMIT, THIS WILL HAPPEN FOR EVERY SCALEDOWN!!!
+    #########
     ha = haproxy.HAproxy()
     stack = openstack()
     active = stack.active_backends()
@@ -82,7 +85,7 @@ def scale_down(Number=1):
         for node in passive:
             print "Removing passive node %s" % node.name
             node.delete()
-            removed += 1
+            #removed += 1
 
     if not passive and len(active) == (min_backends+1):
         active[-1].stop()
@@ -96,7 +99,7 @@ def scale_down(Number=1):
         print "Number that will be left: %s" % str(left)
         if left > min_backends:
             print "Ok, so we are removing: %s hosts" % str(toremove)
-            for i in range(0,toremove):
+            for i in range(1,toremove+1):
                 print "Iteration %s" % str(i)
                 if 'ACTIVE' in active[-i].status:
                     print "Stopping node %s" % active[-i].name
@@ -167,6 +170,10 @@ def new_metrics(current_cumulated, hareset=False):
     current['acu'] = current_cumulated
     current['date'] = datetime.datetime.now()
     try:
+        print "Current new cumulated connections: %s" % str(current_cumulated)
+        print "Calculation: float(%s) - float(%s) / float(%s-%s.seconds (%s))" % \
+                (str(current_cumulated), metrics[-1]['acu'], str(current['date']), str(metrics[-1]['date']),\
+                str((current['date'] - metrics[-1]['date']).seconds))
         current['diff'] = (float(current_cumulated) - float(metrics[-1]['acu'])) \
                 / float((current['date']-metrics[-1]['date']).seconds)
     except ZeroDivisionError:
@@ -221,7 +228,7 @@ def main():
                 scale_up(needed-len(active_backends))
             elif needed < len(active_backends):
                 print "Scaling down"
-                if not scale_down(len(active_backends)-needed-min_backends):
+                if not scale_down(len(active_backends)-needed):
                     print "Lowest number"
             else:
                 # Sleeping
