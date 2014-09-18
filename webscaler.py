@@ -15,7 +15,9 @@ server_threshold = 10
 current_backends = 0
 pending_backends = []
 quota_limit = 13
-hareloaded = False
+ha_reloaded = False
+ha_last_reload = None
+epoch_start = datetime.datetime.now()
 
 metrics = []
 actions = {}
@@ -100,7 +102,7 @@ def scale_down(Number=1):
     if active:
         print "Starting to remove active nodes, wanting to remove %s nodes" % Number
         left = len(active) - (Number-removed)
-        toremove = Number - removed - (min_backends)
+        toremove = Number - removed #- (min_backends)
 
         print "Number that will be left: %s" % str(left)
         if left > min_backends:
@@ -130,23 +132,19 @@ def scale_down(Number=1):
     # wait untill no more connections
     # nova remove server
 
-def what_do():
-    # get current cumulative request counter
-    current = hastats.get_backend_cum_requests()['stot']
-
-    print "Cum connections on backend: %s" % str(current)
-    print "Total backends: %s" % str(len(backends))
-
-
 def update_conf():
     """ Do we need to update the configuration? """
+    global ha_reloaded
     stats = hastats.get_stat_backends()
     stack = openstack()
     backends = stack.backends()
     if not len(backends) == len(stats):
         ha = haproxy.HAproxy()
         ha.compile(backends)
-        ha.restart()
+        global ha_last_reload
+        ha_last_reload = datetime.datetime.now()
+        if ha.restart():
+            ha_reloaded = True
         return True
     return False
 
@@ -164,6 +162,7 @@ def initiate():
     data['active'] = len(stack.active_backends())#len(hastats.get_backends_up())
     data['haactive'] = len(hastats.get_backends_up())
     data['needed'] = None
+    data['epoch'] = (datetime.datetime.now()-epoch_start).seconds
     metrics.append(data)
     print metrics
     time.sleep(sleeptime)
@@ -175,6 +174,7 @@ def initiate():
     data['needed'] = needed_servers(acu=data['acu'], diff=data['diff'])
     data['active'] = len(stack.active_backends())#len(hastats.get_backends_up())
     data['haactive'] = len(hastats.get_backends_up())
+    data['epoch'] = (datetime.datetime.now()-epoch_start).seconds
     metrics.append(data)
     time.sleep(sleeptime)
 
@@ -183,24 +183,40 @@ def needed_servers(acu=None,diff=None):
     # calculate servers for the load
     # requests per sec / threshold
     # ceil: rounds up
-    needed = int(ceil(float(last['diff']) / float(server_threshold)))
+    #needed = int(ceil(float(last['diff']) / float(server_threshold)))
+    print diff
+    needed = int(ceil(int(diff) / float(server_threshold)))
     return needed
 
 def new_metrics(current_cumulated, hareset=False):
+    global ha_reloaded
+    global ha_last_reload
     current = {}
     current['acu'] = current_cumulated
     current['date'] = datetime.datetime.now()
+
+    if ha_reloaded:
+        last_cumulated = 0
+        difference = int(ceil((float(current_cumulated) - float(last_cumulated)) \
+                / float((current['date'] - ha_last_reload).seconds)))
+        diffpt = int(difference) * (current['date'] - ha_last_reload).seconds
+
     try:
         print "Current new cumulated connections: %s" % str(current_cumulated)
         print "Calculation: float(%s) - float(%s) / float(%s-%s.seconds (%s))" % \
                 (str(current_cumulated), metrics[-1]['acu'], str(current['date']), str(metrics[-1]['date']),\
                 str((current['date'] - metrics[-1]['date']).seconds))
 
-        if current_cumulated:
-            current['diff'] = int((float(current_cumulated) - float(metrics[-1]['acu'])) \
-                    / float((current['date']-metrics[-1]['date']).seconds))
+        if ha_reloaded:
+            current['diff'] = difference
+            current['diffpt'] = diffpt
+            ha_reloaded = False
         else:
-            current['diff'] = 0
+            current['diff'] = int(ceil((float(current_cumulated) - float(metrics[-1]['acu'])) \
+                    / float((current['date']-metrics[-1]['date']).seconds)))
+            current['diffpt'] = current['diff'] * (current['date']-metrics[-1]['date']).seconds
+        #else:
+            #current['diff'] = 0
     except ZeroDivisionError:
         current['diff'] = 0
 
@@ -208,6 +224,7 @@ def new_metrics(current_cumulated, hareset=False):
     current['needed'] = needed_servers(acu=current['acu'], diff=current['diff'])
     current['active'] = len(stack.active_backends())#len(hastats.get_backends_up())
     current['haactive'] = len(hastats.get_backends_up())
+    current['epoch'] = (datetime.datetime.now()-epoch_start).seconds
 
     #if hareset:
         #current['acu'] = current_cumulated
@@ -238,15 +255,15 @@ def main():
 
         while True:
             current = new_metrics(hastats.get_backend_cum_requests()['stot'])
-            print metrics
-            print needed_servers()
+            print metrics[-1]
+            print "Needed servers: %s" % str(needed_servers(diff=current['diff']))
 
             # What to do? Scale up/down or are we happy?
             stack = openstack()
             active_backends = stack.active_backends()
             up_backends = hastats.get_backends_up()
 
-            needed = needed_servers()
+            needed = needed_servers(diff=current['diff'])
             #if len(active_backends) == len(up_backends):
                 # We are in concurrency
             if needed > len(active_backends):
@@ -262,7 +279,8 @@ def main():
 
             if update_conf():
                 print "HAproxy config reloaded"
-            new_metrics(hastats.get_backend_cum_requests()['stot'], hareset=True)
+                print ha_last_reload
+            #new_metrics(hastats.get_backend_cum_requests()['stot'], hareset=True)
 
             for line in hastats.get_stat_backends():
                 print line['svname'] + ', ' + line['status']
