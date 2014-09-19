@@ -158,6 +158,7 @@ def initiate():
     data = {}
     data['acu'] = hastats.get_backend_cum_requests()['stot']
     data['diff'] = 0
+    data['diffpt'] = 0
     data['date'] = datetime.datetime.now()
     data['active'] = len(stack.active_backends())#len(hastats.get_backends_up())
     data['haactive'] = len(hastats.get_backends_up())
@@ -170,6 +171,7 @@ def initiate():
     data = {}
     data['acu'] = hastats.get_backend_cum_requests()['stot']
     data['diff'] = (float(data['acu']) - float(last['acu'])) / float(sleeptime)
+    data['diffpt'] = data['diff'] * sleeptime
     data['date'] = datetime.datetime.now()
     data['needed'] = needed_servers(acu=data['acu'], diff=data['diff'])
     data['active'] = len(stack.active_backends())#len(hastats.get_backends_up())
