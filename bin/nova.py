@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from novaclient import client, v1_1
+import novaclient
 from os import environ, path
 import time
 import ConfigParser
@@ -74,12 +75,16 @@ class openstack:
         f = open(path.join(self.p, 'etc/clouddata.txt'), 'r')
 
         # try/except novaclient.exceptions.OverLimit
-        server = self.nova.servers.create(name = name,
-                                    image = image.id,
-                                    flavor = flavor.id,
-                                    nics = nics,
-                                    key_name = keypair.name,
-                                    userdata=f)
+        try:
+            server = self.nova.servers.create(name = name,
+                                        image = image.id,
+                                        flavor = flavor.id,
+                                        nics = nics,
+                                        key_name = keypair.name,
+                                        userdata=f)
+        except novaclient.exceptions.OverLimit:
+            print "No more available resources"
+            return None
 
         status = server.status
         while status == 'BUILD':
