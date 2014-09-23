@@ -70,6 +70,12 @@ class HAproxy:
         conn.close()
         return ret
 
+    def drain(self, instance):
+        conn = HAconn()
+        ret = conn.send_cmd('set server nodes/%s state drain' % instance.name)
+        conn.close()
+        return ret
+
 
 def main():
     ha = HAproxy()
