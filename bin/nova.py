@@ -5,6 +5,7 @@ from novaclient import client, v1_1
 import novaclient
 from os import environ, path
 from threading import Thread
+from natsort import humansorted
 import haproxy, hastats
 import time
 import ConfigParser
@@ -44,7 +45,9 @@ class openstack:
             if "node" in node.name:
                 backends.append(node)
 
-        return backends[::-1]
+        obj = humansorted(backends, key=lambda x: x.name, reverse=True)
+
+        return obj
 
     def active_backends(self):
         active = []
