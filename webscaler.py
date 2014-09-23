@@ -5,6 +5,7 @@
 from bin import haproxy, hastats
 from bin.nova import openstack
 from math import ceil
+from threading import Thread, Lock
 import time
 import datetime
 import csv
@@ -53,17 +54,14 @@ def scale_up(Number=1):
     if sleeping:
         print sleeping
         #if not 'powering-on' in sleeping.state:
+        #thread.start()
+
         sleeping.start()
         scaled += 1
     else:
         if scaled < Number:
-            instances = []
-            for i in range(0,Number-scaled):
-                instances.append(stack.create_backend())
-            return instances
-
-
-    # could reload proxy here?
+            thread = Thread(target=stack.create_multiple(Number-scaled))
+            thread.start()
 
 def scale_down(Number=1):
     #########
@@ -170,7 +168,7 @@ def initiate():
     last = data
     data = {}
     data['acu'] = hastats.get_backend_cum_requests()['stot']
-    data['diff'] = (float(data['acu']) - float(last['acu'])) / float(sleeptime)
+    data['diff'] = int((float(data['acu']) - float(last['acu'])) / float(sleeptime))
     data['diffpt'] = data['diff'] * sleeptime
     data['date'] = datetime.datetime.now()
     data['needed'] = needed_servers(acu=data['acu'], diff=data['diff'])
