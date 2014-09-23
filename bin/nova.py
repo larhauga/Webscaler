@@ -161,10 +161,11 @@ class openstack:
     def sleeping_machine(self):
         """ Returns the first shutoff machine """
         backends = self.backends()
+        ret = []
         for node in backends:
             if node.status in 'SHUTOFF':
-                return node
-        return None
+                ret.append(node)
+        return ret
 
 def main():
     stack = openstack()
