@@ -136,6 +136,24 @@ def scale_down(Number=1):
     # wait untill no more connections
     # nova remove server
 
+def handle_scaledown(instance, delete=False, stop=False):
+    ha = haproxy.HAproxy()
+    stack = openstack()
+    # Set the instance in draining mode.
+    # No new conns. Active finishes
+    ha.drain(instance)
+    # Operating with short draintime (only static page)
+    time.sleep(1)
+    try:
+        if stop:
+            instance.stop()
+        elif delete:
+            instance.delete()
+    except:
+        print "Cant stop/delete instnace %s" % instance.name
+
+
+
 def update_conf():
     """ Do we need to update the configuration? """
     global ha_reloaded
