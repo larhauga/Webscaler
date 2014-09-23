@@ -53,11 +53,16 @@ def scale_up(Number=1):
     scaled = 0
     if sleeping:
         print sleeping
-        #if not 'powering-on' in sleeping.state:
-        #thread.start()
+        if len(sleeping) > 1:
+            for node in sleeping:
+                if scaled < Number and not 'powering-on' in node.state:
+                    node.start()
+                    scaled += 1
+        else:
+            if not 'powering-on' in sleeping.state:
+                sleeping.start()
+                scaled += 1
 
-        sleeping.start()
-        scaled += 1
     else:
         if scaled < Number:
             thread = Thread(target=stack.create_multiple(Number-scaled))
@@ -94,6 +99,7 @@ def scale_down(Number=1):
             removed += 1
 
     if not passive and len(active) == (min_backends+1):
+        print "Stopping node %s" % active[-1].name
         active[-1].stop()
         return True
 
