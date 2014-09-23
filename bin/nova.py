@@ -4,6 +4,8 @@
 from novaclient import client, v1_1
 import novaclient
 from os import environ, path
+from threading import Thread
+import haproxy, hastats
 import time
 import ConfigParser
 
@@ -59,12 +61,33 @@ class openstack:
                 passive.append(node)
         return passive
 
+    def create_multiple(self, number):
+        backends = self.backends()
+        namenr = self.get_instance_number(nodes=backends, next=True)
+        instances = []
+        threads = []
+        for i in range(0,number):
+            name = 'node-%s' % str(namenr + i)
+            #print "start %s" % name
+            thread = Thread(target=self.create_backend, kwargs={'nextname':name})
+            thread.start()
+            threads.append(thread)
 
-    def create_backend(self):
+        for thread in threads:
+            thread.join()
+            #print "next2"
+            #self.create_backend()
+
+    def create_backend(self, nextname=None):
         """ Creates a instance in Openstack """
         backends = self.backends()
 
-        name = 'node-%s' % str(self.get_instance_number(nodes=backends, next=True))
+        name = ''
+        if nextname:
+            #print nextname
+            name = nextname
+        else:
+            name = 'node-%s' % str(self.get_instance_number(nodes=backends, next=True))
 
         keypair = self.nova.keypairs.find(name='hlarshaugan')
         image = self.nova.images.find(name='ubuntu-12.04')
@@ -92,7 +115,7 @@ class openstack:
             instance = self.nova.servers.get(server.id)
             status = instance.status
 
-        return instance
+        #return instance
 
     def start(self, instance):
         if isinstance(instance, v1_1.servers.Server):
