@@ -60,19 +60,19 @@ class HAproxy:
 
     def set_online(self, instancename):
         conn = HAconn()
-        ret = conn.send_cmd('enable server nodes/%s' % (instancename))
+        ret = conn.send_cmd('enable server nodes/%s\r\n' % (instancename))
         conn.close()
         return ret
 
     def set_offline(self,instancename):
         conn = HAconn()
-        ret = conn.send_cmd('disable server nodes/%s' % (instancename))
+        ret = conn.send_cmd('disable server nodes/%s\r\n' % (instancename))
         conn.close()
         return ret
 
     def drain(self, instance):
         conn = HAconn()
-        ret = conn.send_cmd('set server nodes/%s state drain' % instance.name)
+        ret = conn.send_cmd('set server nodes/%s state drain\r\n' % instance.name)
         conn.close()
         return ret
 
