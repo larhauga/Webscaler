@@ -10,6 +10,8 @@ import time
 import datetime
 import csv
 
+import sys, traceback
+
 sleeptime = 60
 min_backends = 2
 server_threshold = 10
@@ -55,12 +57,12 @@ def scale_up(Number=1):
         print sleeping
         if len(sleeping) > 1:
             for node in sleeping:
-                if scaled < Number and not 'powering-on' in node.state:
+                if scaled < Number: # and not 'powering-on' in node.state:
                     node.start()
                     scaled += 1
         else:
-            if not 'powering-on' in sleeping.state:
-                sleeping.start()
+            if not 'ACTIVE' in sleeping[0].status:
+                sleeping[0].start()
                 scaled += 1
 
     else:
@@ -68,75 +70,100 @@ def scale_up(Number=1):
             thread = Thread(target=stack.create_multiple(Number-scaled))
             thread.start()
 
-def scale_down(Number=1):
-    #########
-    # NOTE! WHEN TAKING INTO ACCOUNT THE MINIMUM LIMIT, THIS WILL HAPPEN FOR EVERY SCALEDOWN!!!
-    #########
+def scale_down(Needed=1):
     ha = haproxy.HAproxy()
     stack = openstack()
     active = stack.active_backends()
     passive = stack.passive_backends()
     instance = None
 
-    print "active servs: %s, min bakends: %s" % (str(len(active)), str(min_backends))
-
-    if len(active) <= min_backends:
-        if passive > 1:
-            for node in passive:
-                node.delete()
-            return True
-        return False
-
-    print passive
-    print active
-
+    print "active servs: %s, min bakends: %s, needed: %s" % (str(len(active)), str(min_backends), str(Needed))
+    toremove = len(active) - Needed
     removed = 0
+    threads = []
+    #print passive
+    #print active
+    if len(passive) > 1:
+        # Delete the stopped nodes, and leave one
+        for node in passive[1:][::-1]:
+            handle_scaledown(node, delete=True)
 
-    if passive:
-        for node in passive:
-            print "Removing passive node %s" % node.name
-            node.delete()
-            removed += 1
-
-    if not passive and len(active) == (min_backends+1):
-        print "Stopping node %s" % active[-1].name
-        active[-1].stop()
-        return True
-
-    if active:
-        print "Starting to remove active nodes, wanting to remove %s nodes" % Number
-        left = len(active) - (Number-removed)
-        toremove = Number - removed #- (min_backends)
-
-        print "Number that will be left: %s" % str(left)
-        if left > min_backends:
-            print "Ok, so we are removing: %s hosts" % str(toremove)
-            for i in range(1,toremove):
-                print "Iteration %s" % str(i)
+    if toremove > 0:
+        print "Want to remove %s nodes" % str(toremove)
+        if len(active) <= min_backends:
+            return False
+        elif (len(active) - toremove) > min_backends:
+            for i in range(1, toremove + 1):
                 if 'ACTIVE' in active[-i].status:
-                    print "Stopping node %s" % active[-i].name
-                    active[-i].stop()
-                elif 'SHUTOFF' in active[-i].status:
-                    print "Deleting node &s" % active[-i].name
-                    active[-i].delete()
-        elif left <= min_backends:
-            stack = openstack()
-            b = stack.backends()
-            remove = len(b) - min_backends
-            for i in range(1, remove+1):
+                    handle_scaledown(active[-i], stop=True)
+        else:
+            recalculate = len(active) - (Needed + min_backends)
+            for i in range(1, recalculate+1):
                 if 'ACTIVE' in active[-i].status:
-                    print "Stopping node %s" % active[-i].name
-                    active[-i].stop()
-                else:
-                    print "Not removing %s since it is %s" % (active[-i].name, active[-i].status)
+                    handle_scaledown(active[-i], stop=True)
+
+    else:
+        print "No nodes to stop/delete"
+        return False
+        #if not threads:
+            #return False
+
+    #if len(active) <= min_backends:
+        #if passive > 1:
+            #for node in passive:
+                #node.delete()
+            #return True
+        #return False
+    #for thread in threads:
+        #print "Starting thread"
+        #thread.start()
+        #thread.join()
+
+    #for thread in threads:
+        #thread.join()
+
+    #if passive:
+        #for node in passive:
+            #print "Removing passive node %s" % node.name
+            #node.delete()
+            #removed += 1
+
+    #if not passive and len(active) == (min_backends+1):
+        #print "Stopping node %s" % active[-1].name
+        #active[-1].stop()
+        #return True
+
+    #if active:
+        #print "Starting to remove active nodes, wanting to remove %s nodes" % Number
+        #left = len(active) - (Number-removed)
+        #toremove = Number - removed #- (min_backends)
+
+        #print "Number that will be left: %s" % str(left)
+        #if left > min_backends:
+            #print "Ok, so we are removing: %s hosts" % str(toremove)
+            #for i in range(1,toremove):
+                #print "Iteration %s" % str(i)
+                #if 'ACTIVE' in active[-i].status:
+                    #print "Stopping node %s" % active[-i].name
+                    #active[-i].stop()
+                #elif 'SHUTOFF' in active[-i].status:
+                    #print "Deleting node &s" % active[-i].name
+                    #active[-i].delete()
+        #elif left <= min_backends:
+            #stack = openstack()
+            #b = stack.backends()
+            #remove = len(b) - min_backends
+            #for i in range(1, remove+1):
+                #if 'ACTIVE' in active[-i].status:
+                    #print "Stopping node %s" % active[-i].name
+                    #active[-i].stop()
+                #else:
+                    #print "Not removing %s since it is %s" % (active[-i].name, active[-i].status)
 
     return True
 
-    # haproxy set offline
-    # wait untill no more connections
-    # nova remove server
-
 def handle_scaledown(instance, delete=False, stop=False):
+    print "Starting to handle scaledown of %s" % instance.name
     ha = haproxy.HAproxy()
     stack = openstack()
     # Set the instance in draining mode.
@@ -146,11 +173,14 @@ def handle_scaledown(instance, delete=False, stop=False):
     time.sleep(1)
     try:
         if stop:
+            print "Stopping node %s" % instance.name
             instance.stop()
         elif delete:
+            print "Deleting node %s" % instance.name
             instance.delete()
     except:
         print "Cant stop/delete instnace %s" % instance.name
+        traceback.print_exc(file=sys.stdout)
 
 
 
@@ -261,10 +291,6 @@ def new_metrics(current_cumulated, hareset=False):
     metrics.append(current)
     return current
 
-    ######
-    # NOTE! HANDLE RESTART!!!
-    ######
-
 def main():
     # Starting the first time
     # getting current cum connections
@@ -295,7 +321,7 @@ def main():
                 scale_up(needed-len(active_backends))
             elif needed < len(active_backends):
                 print "Scaling down"
-                if not scale_down(len(active_backends)-needed):
+                if not scale_down(Needed=needed):#len(active_backends)-needed):
                     print "Lowest number"
             else:
                 # Sleeping
