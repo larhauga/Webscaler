@@ -24,16 +24,7 @@ epoch_start = datetime.datetime.now()
 
 metrics = []
 actions = {}
-# actions on the way
 
-# figure out how to get the difference and keep count
-"""
-    What data do we need in metrics?
-    date: date object of when
-    acu: accumulated requests
-    diff: difference since last time
-
-"""
 def write_data():
     with open('%s-webscaler' % (datetime.datetime.now().strftime("%Y-%m-%dT%H%M")), 'wb') as f:
         w = csv.DictWriter(f, metrics[0].keys)
@@ -81,8 +72,7 @@ def scale_down(Needed=1):
     toremove = len(active) - Needed
     removed = 0
     threads = []
-    #print passive
-    #print active
+
     if len(passive) > 1:
         # Delete the stopped nodes, and leave one
         for node in passive[1:][::-1]:
@@ -105,61 +95,6 @@ def scale_down(Needed=1):
     else:
         print "No nodes to stop/delete"
         return False
-        #if not threads:
-            #return False
-
-    #if len(active) <= min_backends:
-        #if passive > 1:
-            #for node in passive:
-                #node.delete()
-            #return True
-        #return False
-    #for thread in threads:
-        #print "Starting thread"
-        #thread.start()
-        #thread.join()
-
-    #for thread in threads:
-        #thread.join()
-
-    #if passive:
-        #for node in passive:
-            #print "Removing passive node %s" % node.name
-            #node.delete()
-            #removed += 1
-
-    #if not passive and len(active) == (min_backends+1):
-        #print "Stopping node %s" % active[-1].name
-        #active[-1].stop()
-        #return True
-
-    #if active:
-        #print "Starting to remove active nodes, wanting to remove %s nodes" % Number
-        #left = len(active) - (Number-removed)
-        #toremove = Number - removed #- (min_backends)
-
-        #print "Number that will be left: %s" % str(left)
-        #if left > min_backends:
-            #print "Ok, so we are removing: %s hosts" % str(toremove)
-            #for i in range(1,toremove):
-                #print "Iteration %s" % str(i)
-                #if 'ACTIVE' in active[-i].status:
-                    #print "Stopping node %s" % active[-i].name
-                    #active[-i].stop()
-                #elif 'SHUTOFF' in active[-i].status:
-                    #print "Deleting node &s" % active[-i].name
-                    #active[-i].delete()
-        #elif left <= min_backends:
-            #stack = openstack()
-            #b = stack.backends()
-            #remove = len(b) - min_backends
-            #for i in range(1, remove+1):
-                #if 'ACTIVE' in active[-i].status:
-                    #print "Stopping node %s" % active[-i].name
-                    #active[-i].stop()
-                #else:
-                    #print "Not removing %s since it is %s" % (active[-i].name, active[-i].status)
-
     return True
 
 def handle_scaledown(instance, delete=False, stop=False):
@@ -182,8 +117,6 @@ def handle_scaledown(instance, delete=False, stop=False):
         print "Cant stop/delete instnace %s" % instance.name
         traceback.print_exc(file=sys.stdout)
 
-
-
 def update_conf():
     """ Do we need to update the configuration? """
     global ha_reloaded
@@ -204,8 +137,7 @@ def initiate():
     # Boot first machines if not active:
     stack = openstack()
     backends = stack.backends()
-    #if len(backends) < min_backends:
-        #scale_up(min_backends)
+
     # Gathering first data
     data = {}
     data['acu'] = hastats.get_backend_cum_requests()['stot']
@@ -269,8 +201,6 @@ def new_metrics(current_cumulated, hareset=False):
             current['diff'] = int(ceil((float(current_cumulated) - float(metrics[-1]['acu'])) \
                     / float((current['date']-metrics[-1]['date']).seconds)))
             current['diffpt'] = current['diff'] * (current['date']-metrics[-1]['date']).seconds
-        #else:
-            #current['diff'] = 0
     except ZeroDivisionError:
         current['diff'] = 0
 
@@ -280,23 +210,13 @@ def new_metrics(current_cumulated, hareset=False):
     current['haactive'] = len(hastats.get_backends_up())
     current['epoch'] = (datetime.datetime.now()-epoch_start).seconds
 
-    #if hareset:
-        #current['acu'] = current_cumulated
-        #current['diff'] = metrics[-1]['diff']
-        #current['needed'] = needed_servers(acu=current['acu'], diff=current['diff'])
-
-    #stack = openstack()
-    #current['active'] = stack.active_backends()
-
     metrics.append(current)
     return current
 
 def main():
     # Starting the first time
     # getting current cum connections
-
     try:
-
         if not metrics:
             print("Gathering initial data...")
 
@@ -314,14 +234,12 @@ def main():
             up_backends = hastats.get_backends_up()
 
             needed = needed_servers(diff=current['diff'])
-            #if len(active_backends) == len(up_backends):
-                # We are in concurrency
             if needed > len(active_backends):
                 print "Scaling up"
                 scale_up(needed-len(active_backends))
             elif needed < len(active_backends):
                 print "Scaling down"
-                if not scale_down(Needed=needed):#len(active_backends)-needed):
+                if not scale_down(Needed=needed):
                     print "Lowest number"
             else:
                 # Sleeping
@@ -330,7 +248,6 @@ def main():
             if update_conf():
                 print "HAproxy config reloaded"
                 print ha_last_reload
-            #new_metrics(hastats.get_backend_cum_requests()['stot'], hareset=True)
 
             for line in hastats.get_stat_backends():
                 print line['svname'] + ', ' + line['status']
@@ -339,7 +256,6 @@ def main():
 
     except KeyboardInterrupt:
         write_data()
-        pass
 
 if __name__ == '__main__':
     main()
